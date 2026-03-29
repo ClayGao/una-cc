@@ -9,9 +9,9 @@
     <key>CFBundleIdentifier</key>
     <string>com.clay.una-cc</string>
     <key>CFBundleVersion</key>
-    <string>11.1</string>
+    <string>11.2</string>
     <key>CFBundleShortVersionString</key>
-    <string>11.1</string>
+    <string>11.2</string>
     <key>CFBundleExecutable</key>
     <string>una-cc</string>
     <key>CFBundleIconFile</key>

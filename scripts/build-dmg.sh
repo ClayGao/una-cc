@@ -51,6 +51,10 @@ cp -R sounds "${APP_BUNDLE}/Contents/Resources/"
 # App icon
 cp assets/una-icon.icns "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
 
+# Ad-hoc code sign (must be after all resources are in place)
+echo "Signing..."
+codesign --force --deep --sign - "${APP_BUNDLE}"
+
 # Create DMG
 echo "Creating DMG..."
 mkdir -p "${DMG_STAGING}"
