@@ -1370,12 +1370,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         stateServer.start(port: 45900)
 
-        idleTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            if self.currentState != .idle && self.explicitStop &&
-               Date().timeIntervalSince(self.lastEventTime) > 30 {
+            if self.currentState != .idle &&
+               Date().timeIntervalSince(self.lastEventTime) > 8 {
                 self.goToWorkstation(ToolRouter.centerIdle, state: .idle)
-                self.explicitStop = false
             }
         }
     }
