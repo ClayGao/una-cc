@@ -1202,12 +1202,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     var demoRunning = false
+    var demoTimers: [Timer] = []
 
     func stopDemo() {
         demoRunning = false
+        demoTimers.forEach { $0.invalidate() }
+        demoTimers.removeAll()
     }
 
     func startDemo() {
+        stopDemo()
         demoRunning = true
         let sequence: [(String, String, UnaState, String)] = [
             ("", "UserPromptSubmit", .thinking, "thinking"),
@@ -1219,8 +1223,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ]
 
         for (i, (tool, event, state, voiceCat)) in sequence.enumerated() {
-            Timer.scheduledTimer(withTimeInterval: Double(i) * 5.0 + 2.0, repeats: false) { [weak self] _ in
-                guard let self = self else { return }
+            let t = Timer.scheduledTimer(withTimeInterval: Double(i) * 5.0 + 2.0, repeats: false) { [weak self] _ in
+                guard let self = self, self.demoRunning else { return }
                 let ws = ToolRouter.route(tool: tool, event: event, state: state)
                 self.goToWorkstation(ws, state: state)
                 self.speech.play(voiceCat)
@@ -1229,13 +1233,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.gameView.droneCtrl.launchDrone()
                 }
             }
+            demoTimers.append(t)
         }
 
         // Loop demo only if still running
-        Timer.scheduledTimer(withTimeInterval: Double(sequence.count) * 5.0 + 4.0, repeats: false) { [weak self] _ in
+        let loopTimer = Timer.scheduledTimer(withTimeInterval: Double(sequence.count) * 5.0 + 4.0, repeats: false) { [weak self] _ in
             guard self?.demoRunning == true else { return }
             self?.startDemo()
         }
+        demoTimers.append(loopTimer)
     }
 
     var sfx: [String: [AVAudioPlayer]] = [:]  // SFX with variations
