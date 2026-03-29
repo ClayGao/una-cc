@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Una Companion</string>
+    <string>una-cc</string>
     <key>CFBundleDisplayName</key>
-    <string>Una Companion</string>
+    <string>una-cc</string>
     <key>CFBundleIdentifier</key>
-    <string>com.clay.una-companion</string>
+    <string>com.clay.una-cc</string>
     <key>CFBundleVersion</key>
-    <string>11.0</string>
+    <string>11.1</string>
     <key>CFBundleShortVersionString</key>
-    <string>11.0</string>
+    <string>11.1</string>
     <key>CFBundleExecutable</key>
-    <string>UnaCompanion</string>
+    <string>una-cc</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>

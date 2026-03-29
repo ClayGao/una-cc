@@ -49,6 +49,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Una Companion ${{ steps.version.outputs.tag }}
-          files: build/UnaCompanion.dmg
+          name: una-cc ${{ steps.version.outputs.tag }}
+          files: build/una-cc.dmg
           generate_release_notes: true

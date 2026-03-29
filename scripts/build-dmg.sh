@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-APP_NAME="UnaCompanion"
+APP_NAME="una-cc"
 BUILD_DIR="build"
 APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
 DMG_STAGING="${BUILD_DIR}/dmg-staging"
@@ -48,12 +48,8 @@ cp -R assets-v10 "${APP_BUNDLE}/Contents/Resources/"
 cp -R voice-lines "${APP_BUNDLE}/Contents/Resources/"
 cp -R sounds "${APP_BUNDLE}/Contents/Resources/"
 
-# App icon (if exists)
-if [ -f assets/icon.icns ]; then
-  cp assets/icon.icns "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
-elif [ -f assets/AppIcon.icns ]; then
-  cp assets/AppIcon.icns "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
-fi
+# App icon
+cp assets/una-icon.icns "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
 
 # Create DMG
 echo "Creating DMG..."

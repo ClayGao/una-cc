@@ -902,7 +902,7 @@ class SetupManager {
 
     static let hookScript = """
     #!/bin/bash
-    # una-hook.sh — v11 Tool-aware routing for Una Companion
+    # una-hook.sh — v11 Tool-aware routing for una-cc
     curl -s --connect-timeout 0.2 "http://localhost:45900/health" >/dev/null 2>&1 || exit 0
 
     INPUT=$(cat 2>/dev/null || echo '{}')
@@ -1132,7 +1132,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         startStateServer()
         speech.loadVoiceLines(dir: "\(base)/voice-lines")
 
-        print("Una Companion v11 — Tool-Aware + Idle Patrol")
+        print("una-cc v11 — Tool-Aware + Idle Patrol")
 
         // First-run setup check
         let setup = SetupManager()
@@ -1149,7 +1149,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func showSetupDialog(_ setup: SetupManager) {
         let alert = NSAlert()
-        alert.messageText = "Una Companion"
+        alert.messageText = "una-cc"
         alert.informativeText = """
         ◆ Claude Code: \(setup.isClaudeInstalled ? "Detected ✓" : "Not found ✗")
         ◆ Hook script: \(setup.isHookInstalled ? "Installed ✓" : "Will install")
@@ -1413,7 +1413,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let menu = NSMenu()
 
-        let t = NSMenuItem(title: "Una Companion v11", action: nil, keyEquivalent: "")
+        let t = NSMenuItem(title: "una-cc v11", action: nil, keyEquivalent: "")
         t.isEnabled = false; menu.addItem(t)
         menu.addItem(NSMenuItem.separator())
 

@@ -30,8 +30,8 @@ She's not just an animation. She **speaks**, she **knows what tools you're using
 
 ## Install
 
-1. Download **`UnaCompanion.dmg`** from the [latest release](https://github.com/ClayGao/una-cc/releases/latest)
-2. Drag `UnaCompanion.app` to **Applications**
+1. Download **`una-cc.dmg`** from the [latest release](https://github.com/ClayGao/una-cc/releases/latest)
+2. Drag `una-cc.app` to **Applications**
 3. Launch — first-run setup auto-configures Claude Code hooks
 4. Start working in Claude Code. Una is watching.
 
@@ -86,7 +86,7 @@ She's not just an animation. She **speaks**, she **knows what tools you're using
 ```
 Claude Code hooks → una-hook.sh → HTTP POST localhost:45900/state
                                          │
-                                 UnaCompanion.app
+                                 una-cc.app
                                          │
                            ToolRouter → workstation + pose
                                          │
