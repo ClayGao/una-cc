@@ -76,7 +76,7 @@ class ToolRouter {
     static let holoTable  = Workstation(position: CGPoint(x: 500, y: 680), pose: "idle",     background: .thinking)
     static let console    = Workstation(position: CGPoint(x: 300, y: 660), pose: "working",  background: .working)
     static let mainScreen = Workstation(position: CGPoint(x: 510, y: 560), pose: "scanning", background: .scanning)
-    static let commTerminal = Workstation(position: CGPoint(x: 500, y: 660), pose: "dispatch", background: .dispatch)
+    static let commTerminal = Workstation(position: CGPoint(x: 300, y: 660), pose: "dispatch", background: .dispatch)
     static let centerIdle = Workstation(position: CGPoint(x: 500, y: 680), pose: "idle",     background: .idle)
     static let centerAlert = Workstation(position: CGPoint(x: 500, y: 680), pose: "attention", background: .attention)
 
