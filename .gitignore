@@ -1,0 +1,34 @@
+# Build artifacts
+*.app/
+*.dmg
+build/
+dmg-staging/
+CortanaCompanion
+YunaCompanion
+UnaCompanion
+
+# Legacy directories (v7-v9)
+frames/
+frames-final/
+frames-v2/
+pixel-frames/
+pixel-frames-v2/
+pixel-frames-v3/
+sprites/
+sprites-clean/
+sprites-v2/
+sprites-v3/
+
+# Legacy files
+speak.sh
+tts-server.py
+yuna-hero.png
+
+# Voice reference (not for distribution)
+voice/
+
+# Local workspace
+tasks/
+
+# macOS
+.DS_Store
