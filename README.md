@@ -1,4 +1,4 @@
-# Una Companion
+# una-cc
 
 ![Una](assets/una-banner.jpg)
 
