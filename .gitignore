@@ -8,17 +8,17 @@ YunaCompanion
 UnaCompanion
 una-cc
 
-# Legacy directories (v7-v9)
-frames/
-frames-final/
-frames-v2/
-pixel-frames/
-pixel-frames-v2/
-pixel-frames-v3/
-sprites/
-sprites-clean/
-sprites-v2/
-sprites-v3/
+# Legacy directories (v7-v9) — root level only
+/frames/
+/frames-final/
+/frames-v2/
+/pixel-frames/
+/pixel-frames-v2/
+/pixel-frames-v3/
+/sprites/
+/sprites-clean/
+/sprites-v2/
+/sprites-v3/
 
 # Legacy files
 speak.sh
