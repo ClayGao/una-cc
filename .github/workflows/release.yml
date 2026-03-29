@@ -2,8 +2,14 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    paths:
+      - 'UnaCompanion.swift'
+      - 'Info.plist'
+      - 'assets-v10/**'
+      - 'voice-lines/**'
+      - 'sounds/**'
+      - 'scripts/**'
 
 permissions:
   contents: write
@@ -13,14 +19,36 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from Info.plist
+        id: version
+        run: |
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Info.plist)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: check
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build universal binary and DMG
+        if: steps.check.outputs.exists == 'false'
         run: |
           chmod +x scripts/build-dmg.sh
           ./scripts/build-dmg.sh
 
-      - name: Create GitHub Release
+      - name: Create tag and GitHub Release
+        if: steps.check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Una Companion ${{ steps.version.outputs.tag }}
           files: build/UnaCompanion.dmg
           generate_release_notes: true
