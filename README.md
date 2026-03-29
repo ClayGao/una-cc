@@ -35,7 +35,11 @@ She's not just an animation. She **speaks**, she **knows what tools you're using
 3. Launch — first-run setup auto-configures Claude Code hooks
 4. Start working in Claude Code. Una is watching.
 
-> **Note:** macOS may block unsigned apps. Right-click → Open to bypass Gatekeeper.
+> **Note:** macOS will show "Apple cannot verify" on first launch. Fix with:
+> ```bash
+> xattr -cr /Applications/una-cc.app
+> ```
+> Or go to **System Settings → Privacy & Security → "Open Anyway"**.
 
 ---
 
