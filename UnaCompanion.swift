@@ -1360,7 +1360,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.speech.onEvent(evt)
 
             // Drone = SubAgent + power-up SFX
-            if evt.event == "SubagentStart" || (evt.event == "PreToolUse" && evt.tool == "Agent") {
+            if evt.event == "SubagentStart" {
                 self.gameView.droneCtrl.launchDrone()
                 self.playSFX("power_up")
             }
