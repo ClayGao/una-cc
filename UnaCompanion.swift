@@ -234,9 +234,9 @@ class DroneController {
         var toRemove: [Int] = []
         for i in drones.indices {
             drones[i].life += 0.02
-            // Offset per drone so they don't overlap (fan formation)
-            let offset = CGFloat(drones[i].id % 5) * 40 - 80  // -80, -40, 0, 40, 80
-            let yOff = CGFloat(drones[i].id % 3) * 25 - 25     // -25, 0, 25
+            // Offset per drone — wide spread formation
+            let offset = CGFloat(drones[i].id % 7) * 60 - 180  // -180..+180
+            let yOff = CGFloat(drones[i].id % 5) * 40 - 80     // -80..+80
             let myReceive = CGPoint(x: unaReceive.x + offset, y: unaReceive.y + yOff)
             let myExit = CGPoint(x: exitPoint.x + offset * 0.5, y: exitPoint.y + yOff)
 
@@ -251,9 +251,6 @@ class DroneController {
             case .hovering:
                 drones[i].position.x = myReceive.x
                 drones[i].position.y = myReceive.y + sin(drones[i].life * 6) * 4
-                if drones[i].life > 1.5 {
-                    drones[i].phase = .departing; drones[i].target = myExit; drones[i].life = 0
-                }
 
             case .departing:
                 let t = min(drones[i].life, 1.0)
@@ -1390,9 +1387,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         gameView.character.walkTo(position: ws.position, pose: ws.pose)
         gameView.switchBackground(to: ws.background)
 
-        if old == .dispatch && state != .dispatch {
-            gameView.droneCtrl.recallAll()
-        }
+        // Drones are only recalled on SubagentStop, not on state change
 
         print("  \(old.rawValue) → \(state.rawValue) [\(ws.pose)]")
         playSound(state.rawValue)
