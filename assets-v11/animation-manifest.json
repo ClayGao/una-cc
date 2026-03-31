@@ -1,0 +1,148 @@
+{
+  "animations": {
+    "idle": {
+      "dir": "idle-thinking", "frames": [0,1,2,3],
+      "fps": 2, "loop": true
+    },
+    "thinking": {
+      "dir": "idle-thinking", "frames": [4,5,6,7],
+      "fps": 4, "loop": true
+    },
+    "working_typing": {
+      "dir": "working-typing", "frames": [0,1,2,3,4,5],
+      "fps": 6, "loop": true, "scale": 1.15
+    },
+    "working_terminal": {
+      "dir": "terminal-search", "frames": [0,1,2,3],
+      "fps": 4, "loop": true, "scale": 1.45
+    },
+    "scanning_read": {
+      "dir": "reading-transitions", "frames": [0,1,2,3],
+      "fps": 4, "loop": true
+    },
+    "scanning_search": {
+      "dir": "terminal-search", "frames": [4,5,6,7],
+      "fps": 5, "loop": true, "scale": 1.15
+    },
+    "dispatch_agent": {
+      "dir": "dispatch-comm", "frames": [0,1,2,3],
+      "fps": 5, "loop": true
+    },
+    "dispatch_comm": {
+      "dir": "dispatch-comm", "frames": [4,5,6,7],
+      "fps": 4, "loop": true
+    },
+    "attention_alert": {
+      "dir": "attention", "frames": [0,1,2,3],
+      "fps": 6, "loop": true
+    },
+    "attention_permission": {
+      "dir": "attention", "frames": [4,5,6,7],
+      "fps": 4, "loop": true
+    },
+    "tool_jira": {
+      "dir": "jira-slack", "frames": [0,1,2,3],
+      "fps": 4, "loop": true
+    },
+    "tool_slack": {
+      "dir": "jira-slack", "frames": [4,5,6,7],
+      "fps": 4, "loop": true
+    },
+    "tool_github": {
+      "dir": "github-gmail", "frames": [0,1,2,3],
+      "fps": 5, "loop": true
+    },
+    "tool_gmail": {
+      "dir": "github-gmail", "frames": [4,5,6,7],
+      "fps": 4, "loop": true
+    },
+    "tool_browser": {
+      "dir": "browser-websearch", "frames": [0,1,2,3],
+      "fps": 4, "loop": true
+    },
+    "tool_websearch": {
+      "dir": "browser-websearch", "frames": [4,5,6,7],
+      "fps": 5, "loop": true
+    },
+    "tool_image": {
+      "dir": "image-notebook", "frames": [0,1,2,3],
+      "fps": 4, "loop": true
+    },
+    "tool_notebook": {
+      "dir": "image-notebook", "frames": [4,5,6,7],
+      "fps": 4, "loop": true
+    },
+    "tool_docker": {
+      "dir": "docker-database", "frames": [0,1,2,3],
+      "fps": 4, "loop": true, "scale": 0.90
+    },
+    "tool_database": {
+      "dir": "docker-database", "frames": [4,5,6,7],
+      "fps": 4, "loop": true, "scale": 0.90
+    },
+    "celebrate": {
+      "dir": "celebrate", "frames": [0,1,2,3,4,5,6,7],
+      "fps": 10, "loop": false, "next": "idle", "scale": 1.1
+    },
+    "confused": {
+      "dir": "confused-facepalm", "frames": [0,1,2,3],
+      "fps": 4, "loop": true, "scale": 1.20
+    },
+    "facepalm": {
+      "dir": "confused-facepalm", "frames": [4,5,6,7],
+      "fps": 4, "loop": false, "next": "idle", "scale": 1.25
+    },
+    "salute": {
+      "dir": "salute", "frames": [0,1,2,3,4,5],
+      "fps": 8, "loop": false, "next": "idle", "scale": 1.15
+    },
+    "wave": {
+      "dir": "wave", "frames": [0,1,2,3,4,5],
+      "fps": 6, "loop": false, "next": "idle", "scale": 1.15
+    },
+    "sleeping": {
+      "dir": "sleeping-sitting", "frames": [0,1,2,3],
+      "fps": 2, "loop": true
+    },
+    "sitting": {
+      "dir": "sleeping-sitting", "frames": [4,5,6,7],
+      "fps": 3, "loop": true, "scale": 1.10
+    },
+    "wakeup": {
+      "dir": "wakeup", "frames": [0,1,2,3,4,5],
+      "fps": 6, "loop": false, "next": "idle", "scale": 1.15
+    },
+    "coffee": {
+      "dir": "coffee", "frames": [0,1,2,3,4,5],
+      "fps": 4, "loop": false, "next": "idle", "scale": 1.15
+    },
+    "stretch": {
+      "dir": "stretch", "frames": [0,1,2,3,4,5],
+      "fps": 5, "loop": false, "next": "idle", "scale": 1.15
+    },
+    "nod": {
+      "dir": "nod-headshake", "frames": [0,1,2,3],
+      "fps": 6, "loop": false, "next": "idle"
+    },
+    "headshake": {
+      "dir": "nod-headshake", "frames": [4,5,6,7],
+      "fps": 6, "loop": false, "next": "idle"
+    },
+    "walk_down": {
+      "dir": "reference", "frames": [0,1,2],
+      "fps": 6, "loop": true, "scale": 1.15
+    },
+    "walk_up": {
+      "dir": "reference", "frames": [3,4,5],
+      "fps": 6, "loop": true, "scale": 1.15
+    },
+    "walk_left": {
+      "dir": "reference", "frames": [0,1,2],
+      "fps": 6, "loop": true, "scale": 1.15, "mirror": true
+    },
+    "walk_right": {
+      "dir": "reference", "frames": [0,1,2],
+      "fps": 6, "loop": true, "scale": 1.15
+    }
+  }
+}

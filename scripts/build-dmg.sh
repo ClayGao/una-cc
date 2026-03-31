@@ -44,7 +44,7 @@ chmod +x "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 # Bundle resources
 echo "Bundling resources..."
 cp Info.plist "${APP_BUNDLE}/Contents/"
-cp -R assets-v10 "${APP_BUNDLE}/Contents/Resources/"
+cp -R assets-v11 "${APP_BUNDLE}/Contents/Resources/"
 cp -R voice-lines "${APP_BUNDLE}/Contents/Resources/"
 cp -R sounds "${APP_BUNDLE}/Contents/Resources/"
 

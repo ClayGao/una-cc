@@ -30,6 +30,13 @@ voice/
 
 # Local workspace
 tasks/
+outputs/
+sprites-backup-v11/
+una-cc-debug
+UnaCompanion-v11
+
+# Claude Code local settings
+.claude/settings.local.json
 
 # macOS
 .DS_Store

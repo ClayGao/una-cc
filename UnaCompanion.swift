@@ -19,32 +19,35 @@ struct StateEvent {
     let event: String
 }
 
+// MARK: - Animation
+
+struct Animation {
+    let frames: [NSImage]
+    let fps: Int
+    let loop: Bool
+    let next: String?       // After one-shot finishes, switch to this animation
+    let scale: CGFloat      // Render scale multiplier (1.0 = normal, >1 for prop-heavy sprites)
+}
+
 // MARK: - Sprite Atlas
 
 class SpriteAtlas {
-    var walk: [Direction: [NSImage]] = [:]
-    var poses: [String: NSImage] = [:]
+    var animations: [String: Animation] = [:]
     var overlays: [String: NSImage] = [:]
     var drones: [String: NSImage] = [:]
 
+    // Legacy compat — drawCharacter still uses walk[direction] when isWalking
+    var walk: [Direction: [NSImage]] {
+        var result: [Direction: [NSImage]] = [:]
+        if let a = animations["walk_down"]  { result[.down]  = a.frames }
+        if let a = animations["walk_up"]    { result[.up]    = a.frames }
+        if let a = animations["walk_left"]  { result[.left]  = a.frames }
+        if let a = animations["walk_right"] { result[.right] = a.frames }
+        return result
+    }
+
     func load(dir: String) {
-        // Walk cycles
-        for (d, name) in [(Direction.down, "down"), (.up, "up"), (.left, "left"), (.right, "right")] {
-            var frames: [NSImage] = []
-            for i in 0..<3 {
-                if let img = NSImage(contentsOfFile: "\(dir)/sprites/walk_\(name)_\(i).png") {
-                    frames.append(img)
-                }
-            }
-            if !frames.isEmpty { walk[d] = frames; print("  walk_\(name): \(frames.count)f") }
-        }
-        // Poses
-        for name in ["idle", "thinking", "working", "scanning", "dispatch", "attention",
-                      "celebrating", "waving", "sitting", "saluting", "sleeping", "confused"] {
-            if let img = NSImage(contentsOfFile: "\(dir)/sprites/pose_\(name).png") {
-                poses[name] = img
-            }
-        }
+        loadAnimations(dir: dir)
         // Overlays
         for name in ["screen_data", "screen_code", "screen_alert", "screen_radar",
                       "keyboard_glow", "hologram_ring", "antenna_signal", "warning_beacon"] {
@@ -59,61 +62,151 @@ class SpriteAtlas {
             }
         }
     }
+
+    private func loadAnimations(dir: String) {
+        let manifestPath = "\(dir)/animation-manifest.json"
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: manifestPath)),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let anims = json["animations"] as? [String: [String: Any]] else {
+            print("  WARNING: No animation-manifest.json found, falling back to v10 poses")
+            loadLegacyPoses(dir: dir)
+            return
+        }
+
+        for (animName, config) in anims {
+            guard let subdir = config["dir"] as? String,
+                  let frameIndices = config["frames"] as? [Int],
+                  let fps = config["fps"] as? Int,
+                  let loop = config["loop"] as? Bool else { continue }
+
+            let mirror = config["mirror"] as? Bool ?? false
+            let next = config["next"] as? String
+
+            let filePrefix = config["filePrefix"] as? String
+            let spritesDir = "\(dir)/sprites/\(subdir)"
+            var frames: [NSImage] = []
+            let fm = FileManager.default
+            guard let files = try? fm.contentsOfDirectory(atPath: spritesDir) else { continue }
+            let pngs: [String]
+            if let fp = filePrefix {
+                pngs = files.filter { $0.hasSuffix(".png") && $0.hasPrefix(fp) }.sorted()
+            } else {
+                pngs = files.filter { $0.hasSuffix(".png") }.sorted()
+            }
+
+            for idx in frameIndices {
+                guard idx < pngs.count else { continue }
+                let path = "\(spritesDir)/\(pngs[idx])"
+                if let img = NSImage(contentsOfFile: path) {
+                    if mirror {
+                        // Flip horizontally
+                        let flipped = NSImage(size: img.size)
+                        flipped.lockFocus()
+                        let t = NSAffineTransform()
+                        t.translateX(by: img.size.width, yBy: 0)
+                        t.scaleX(by: -1, yBy: 1)
+                        t.concat()
+                        img.draw(in: NSRect(origin: .zero, size: img.size))
+                        flipped.unlockFocus()
+                        frames.append(flipped)
+                    } else {
+                        frames.append(img)
+                    }
+                }
+            }
+
+            if !frames.isEmpty {
+                let scale = config["scale"] as? Double ?? 1.0
+                animations[animName] = Animation(frames: frames, fps: fps, loop: loop, next: next, scale: CGFloat(scale))
+                print("  anim: \(animName) (\(frames.count)f, \(fps)fps\(loop ? ", loop" : "")\(mirror ? ", mirror" : ""))")
+            }
+        }
+    }
+
+    // Fallback for v10 assets
+    private func loadLegacyPoses(dir: String) {
+        for (d, name) in [(Direction.down, "down"), (.up, "up"), (.left, "left"), (.right, "right")] {
+            var frames: [NSImage] = []
+            for i in 0..<3 {
+                if let img = NSImage(contentsOfFile: "\(dir)/sprites/walk_\(name)_\(i).png") {
+                    frames.append(img)
+                }
+            }
+            if !frames.isEmpty {
+                animations["walk_\(name)"] = Animation(frames: frames, fps: 8, loop: true, next: nil, scale: 1.0)
+            }
+        }
+        for name in ["idle", "thinking", "working", "scanning", "dispatch", "attention",
+                      "celebrating", "waving", "sitting", "saluting", "sleeping", "confused"] {
+            if let img = NSImage(contentsOfFile: "\(dir)/sprites/pose_\(name).png") {
+                animations[name] = Animation(frames: [img], fps: 1, loop: true, next: nil, scale: 1.0)
+            }
+        }
+    }
 }
 
 // MARK: - Workstation
 
 struct Workstation {
     let position: CGPoint
-    let pose: String
+    let animation: String
     let background: UnaState  // Which background to show
 }
 
 // MARK: - Tool Router
 
 class ToolRouter {
-    // Four workstations in the room
-    static let holoTable  = Workstation(position: CGPoint(x: 500, y: 680), pose: "idle",     background: .thinking)
-    static let console    = Workstation(position: CGPoint(x: 300, y: 660), pose: "working",  background: .working)
-    static let mainScreen = Workstation(position: CGPoint(x: 510, y: 560), pose: "scanning", background: .scanning)
-    static let commTerminal = Workstation(position: CGPoint(x: 300, y: 660), pose: "dispatch", background: .dispatch)
-    static let centerIdle = Workstation(position: CGPoint(x: 500, y: 680), pose: "idle",     background: .idle)
-    static let centerAlert = Workstation(position: CGPoint(x: 500, y: 680), pose: "attention", background: .attention)
+    // Workstation positions
+    static let holoPos    = CGPoint(x: 500, y: 680)
+    static let consolePos = CGPoint(x: 300, y: 660)
+    static let screenPos  = CGPoint(x: 510, y: 560)
+    static let commPos    = CGPoint(x: 300, y: 660)
+    static let centerPos  = CGPoint(x: 500, y: 680)
+
+    // Convenience factories
+    static func holoTable(_ anim: String = "thinking") -> Workstation { Workstation(position: holoPos, animation: anim, background: .thinking) }
+    static func console(_ anim: String = "working_typing") -> Workstation { Workstation(position: consolePos, animation: anim, background: .working) }
+    static func mainScreen(_ anim: String = "scanning_search") -> Workstation { Workstation(position: screenPos, animation: anim, background: .scanning) }
+    static func commTerminal(_ anim: String = "dispatch_comm") -> Workstation { Workstation(position: commPos, animation: anim, background: .dispatch) }
+    static func centerIdle(_ anim: String = "idle") -> Workstation { Workstation(position: centerPos, animation: anim, background: .idle) }
+    static func centerAlert(_ anim: String = "attention_alert") -> Workstation { Workstation(position: centerPos, animation: anim, background: .attention) }
 
     static func route(tool: String, event: String, state: UnaState) -> Workstation {
-        // Priority: special events first
-        if event == "PermissionRequest" || state == .attention { return centerAlert }
-        if event == "UserPromptSubmit" { return holoTable }
-        if state == .idle { return centerIdle }
+        if event == "PermissionRequest" { return centerAlert("attention_permission") }
+        if state == .attention { return centerAlert() }
+        if event == "UserPromptSubmit" { return holoTable("thinking") }
+        if state == .idle { return centerIdle() }
 
-        // Route by tool name
         switch tool {
         // Left console — coding & commands
-        case "Edit", "Write", "NotebookEdit":           return console
-        case "Bash":                                      return console
-
-        // Back screen — reading & searching files
-        case "Read", "Glob", "Grep":                     return mainScreen
-
+        case "Edit", "Write":                                return console("working_typing")
+        case "Bash":                                          return console("working_terminal")
+        case "NotebookEdit":                                  return console("tool_notebook")
+        // Back screen — reading & searching
+        case "Read":                                          return mainScreen("scanning_read")
+        case "Glob", "Grep":                                  return mainScreen("scanning_search")
         // Right terminal — communication & external
-        case "Agent":                                     return commTerminal
-        case "WebSearch", "WebFetch":                    return commTerminal
-        case "Skill":                                     return commTerminal
-        case let t where t.starts(with: "mcp__mcp-atlassian"): return commTerminal
-        case let t where t.starts(with: "mcp__claude_ai_Slack"): return commTerminal
-
-        // Holo table — planning & generation
-        case "TaskCreate", "TaskUpdate":                 return holoTable
-        case let t where t.starts(with: "mcp__mcp-image"): return holoTable
-
+        case "Agent":                                         return commTerminal("dispatch_agent")
+        case "WebSearch":                                     return commTerminal("tool_websearch")
+        case "WebFetch":                                      return commTerminal("tool_browser")
+        case "Skill":                                         return commTerminal("working_typing")
+        // MCP tools
+        case let t where t.hasPrefix("mcp__mcp-atlassian"):   return commTerminal("tool_jira")
+        case let t where t.hasPrefix("mcp__claude_ai_Slack"): return commTerminal("tool_slack")
+        case let t where t.hasPrefix("mcp__mcp-image"):       return holoTable("tool_image")
+        case let t where t.hasPrefix("mcp__playwright"):      return commTerminal("tool_browser")
+        case let t where t.hasPrefix("mcp__claude-in-chrome"):return commTerminal("tool_browser")
+        // Holo table — planning
+        case "TaskCreate", "TaskUpdate":                      return holoTable("thinking")
         // Default by state
         default:
             switch state {
-            case .working:   return console
-            case .scanning:  return mainScreen
-            case .dispatch:  return commTerminal
-            case .thinking:  return holoTable
-            default:         return centerIdle
+            case .working:   return console()
+            case .scanning:  return mainScreen()
+            case .dispatch:  return commTerminal()
+            case .thinking:  return holoTable()
+            case .attention: return centerAlert()
+            default:         return centerIdle()
             }
         }
     }
@@ -154,18 +247,51 @@ class CharacterController {
     var walkFrameIndex: Int = 0
     var walkFrameTick: Int = 0
     var isWalking: Bool = false
-    var currentPose: String = "idle"
+    var currentAnimation: String = "idle"
+    var animFrameIndex: Int = 0
+    var animTickCount: Int = 0
     var speed: CGFloat = 5.0
     let walkFrameRate: Int = 4
 
+    // Legacy compat
+    var currentPose: String {
+        get { currentAnimation }
+        set { setAnimation(newValue) }
+    }
+
+    func setAnimation(_ name: String) {
+        if name != currentAnimation {
+            currentAnimation = name
+            animFrameIndex = 0
+            animTickCount = 0
+        }
+    }
+
+    var lastDirectionChange: Date = .distantPast
+    let directionCooldown: TimeInterval = 0.6  // Minimum seconds between direction changes
+
     func walkTo(position target: CGPoint, pose: String) {
         targetPosition = target
-        currentPose = pose
+        currentAnimation = pose
         let dx = target.x - position.x, dy = target.y - position.y
         let dist = sqrt(dx * dx + dy * dy)
         if dist < speed * 2 { position = target; isWalking = false; return }
-        isWalking = true; walkFrameIndex = 0; walkFrameTick = 0
-        direction = isoDirection(dx: dx, dy: dy)
+
+        let newDir = isoDirection(dx: dx, dy: dy)
+        if isWalking && newDir != direction &&
+           Date().timeIntervalSince(lastDirectionChange) < directionCooldown {
+            // Already walking, direction change too soon — keep current direction, just update target
+            return
+        }
+
+        if newDir != direction {
+            // Direction actually changed — reset walk cycle
+            walkFrameIndex = 0; walkFrameTick = 0
+            direction = newDir
+            lastDirectionChange = Date()
+        }
+        // Same direction or fresh start: keep walkFrameIndex, just ensure walking
+        isWalking = true
     }
 
     func isoDirection(dx: CGFloat, dy: CGFloat) -> Direction {
@@ -182,7 +308,7 @@ class CharacterController {
         let nx = dx / dist, ny = dy / dist
         position.x += nx * speed; position.y += ny * speed
         walkFrameTick += 1
-        if walkFrameTick >= walkFrameRate { walkFrameTick = 0; walkFrameIndex = (walkFrameIndex + 1) % 3 }
+        if walkFrameTick >= walkFrameRate { walkFrameTick = 0; walkFrameIndex += 1 }
     }
 }
 
@@ -527,11 +653,11 @@ class GameView: NSView {
             bg.draw(in: NSRect(x: 0, y: 0, width: S, height: S))
         }
 
-        // 2. Drones
-        drawDrones(ctx)
-
-        // 3. Una
+        // 2. Una
         drawCharacter(ctx)
+
+        // 3. Drones (on top — they fly above Una)
+        drawDrones(ctx)
 
         // 4. Particles
         drawParticles(ctx)
@@ -578,19 +704,56 @@ class GameView: NSView {
 
     // MARK: - Character
 
+    func tickAnimation() {
+        guard let atlas = atlas else { return }
+        if character.isWalking { return } // Walk frames handled in update()
+        guard let anim = atlas.animations[character.currentAnimation] else { return }
+        guard anim.frames.count > 1 else { return } // Static, no tick needed
+
+        character.animTickCount += 1
+        let framesPerTick = max(1, 30 / anim.fps)
+        if character.animTickCount >= framesPerTick {
+            character.animTickCount = 0
+            character.animFrameIndex += 1
+            if character.animFrameIndex >= anim.frames.count {
+                if anim.loop {
+                    character.animFrameIndex = 0
+                } else {
+                    character.animFrameIndex = anim.frames.count - 1
+                    if let next = anim.next {
+                        character.setAnimation(next)
+                    }
+                }
+            }
+        }
+    }
+
     func drawCharacter(_ ctx: CGContext) {
         guard let atlas = atlas else { return }
         let sprite: NSImage?
+        var renderScale: CGFloat = 1.0
         if character.isWalking {
-            let frames = atlas.walk[character.direction]
-            sprite = frames?[character.walkFrameIndex % (frames?.count ?? 1)]
+            let walkKey = "walk_\(["down","up","left","right"][character.direction.rawValue])"
+            if let anim = atlas.animations[walkKey] {
+                let frameIdx = character.walkFrameIndex % anim.frames.count
+                sprite = anim.frames[frameIdx]
+                renderScale = anim.scale
+            } else {
+                sprite = nil
+            }
         } else {
-            sprite = atlas.poses[character.currentPose] ?? atlas.poses["idle"]
+            let anim = atlas.animations[character.currentAnimation] ?? atlas.animations["idle"]
+            if let a = anim, !a.frames.isEmpty {
+                sprite = a.frames[character.animFrameIndex % a.frames.count]
+                renderScale = a.scale
+            } else {
+                sprite = nil
+            }
         }
         guard let img = sprite else { return }
 
         let aspect = img.size.width / img.size.height
-        let drawH = spriteHeight
+        let drawH = spriteHeight * renderScale
         let drawW = drawH * aspect
         let drawX = character.position.x - drawW / 2
         // Feet at vy(position.y), sprite extends upward
@@ -1103,13 +1266,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Use bundle resources if running as .app, otherwise fallback to dev path
         let base: String
         if let resourcePath = Bundle.main.resourcePath,
-           FileManager.default.fileExists(atPath: "\(resourcePath)/assets-v10") {
+           FileManager.default.fileExists(atPath: "\(resourcePath)/assets-v11") {
             base = resourcePath
         } else {
             let home = FileManager.default.homeDirectoryForCurrentUser.path
             base = "\(home)/Documents/una/companion"
         }
-        let assetsDir = "\(base)/assets-v10"
+        let assetsDir = "\(base)/assets-v11"
 
         let atlas = SpriteAtlas()
         atlas.load(dir: assetsDir)
@@ -1140,7 +1303,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if setup.needsSetup {
             showSetupDialog(setup)
         } else {
-            gameView.character.currentPose = "waving"
+            gameView.character.setAnimation("wave")
             speech.greet()
             Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
                 self?.gameView.character.currentPose = "idle"
@@ -1184,7 +1347,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             """
             resultAlert.alertStyle = result.hookOk && result.settingsOk ? .informational : .warning
             resultAlert.runModal()
-            gameView.character.currentPose = "waving"
+            gameView.character.setAnimation("wave")
             speech.greet()
             Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
                 self?.gameView.character.currentPose = "idle"
@@ -1193,7 +1356,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
         } else {
             // Demo Only
-            gameView.character.currentPose = "waving"
+            gameView.character.setAnimation("wave")
             speech.greet()
             Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
                 self?.gameView.character.currentPose = "idle"
@@ -1217,9 +1380,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let sequence: [(String, String, UnaState, String)] = [
             ("", "UserPromptSubmit", .thinking, "thinking"),
             ("Edit", "PreToolUse", .working, "working"),
+            ("Read", "PreToolUse", .scanning, "scanning"),
+            ("Bash", "PreToolUse", .working, "working"),
             ("Grep", "PreToolUse", .scanning, "scanning"),
             ("Agent", "SubagentStart", .dispatch, "dispatch"),
+            ("mcp__mcp-atlassian__jira", "PreToolUse", .dispatch, "dispatch"),
+            ("mcp__claude_ai_Slack__send", "PreToolUse", .dispatch, "dispatch"),
+            ("WebSearch", "PreToolUse", .dispatch, "dispatch"),
             ("", "PermissionRequest", .attention, "attention"),
+            ("", "TaskCompleted", .idle, "idle"),
             ("", "Stop", .idle, "idle"),
         ]
 
@@ -1309,6 +1478,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         gameTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             guard let self = self, let gv = self.gameView else { return }
             gv.character.update()
+            gv.tickAnimation()
             gv.droneCtrl.update()
             gv.particles.update()
             gv.effectPhase += 1.0 / 30.0
@@ -1332,26 +1502,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             if evt.state == .idle { self.explicitStop = true } else { self.explicitStop = false }
 
-            // Special pose overrides based on event
+            // Special animations based on event
             switch evt.event {
             case "UserPromptSubmit":
-                // Salute then go to workstation
-                self.gameView.character.currentPose = "saluting"
+                self.gameView.character.setAnimation("salute")
                 Timer.scheduledTimer(withTimeInterval: 0.8, repeats: false) { [weak self] _ in
                     let ws = ToolRouter.route(tool: evt.tool, event: evt.event, state: evt.state)
                     self?.goToWorkstation(ws, state: evt.state)
                 }
 
             case "TaskCompleted":
-                self.gameView.character.currentPose = "celebrating"
+                self.gameView.character.setAnimation("celebrate")
                 Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
-                    self?.goToWorkstation(ToolRouter.centerIdle, state: .idle)
+                    self?.goToWorkstation(ToolRouter.centerIdle(), state: .idle)
                 }
 
             case "PostToolUseFailure":
-                self.gameView.character.currentPose = "confused"
+                self.gameView.character.setAnimation("confused")
                 let ws = ToolRouter.route(tool: evt.tool, event: evt.event, state: evt.state)
                 self.goToWorkstation(ws, state: evt.state)
+
+            case "SessionStart":
+                self.gameView.character.setAnimation("wakeup")
+                Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
+                    self?.goToWorkstation(ToolRouter.centerIdle(), state: .idle)
+                }
+
+            case "PreCompact", "PostCompact":
+                let anim = evt.event == "PreCompact" ? "coffee" : "stretch"
+                self.gameView.character.setAnimation(anim)
+                Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+                    self?.goToWorkstation(ToolRouter.centerIdle(), state: .idle)
+                }
+
+            case "StopFailure":
+                self.gameView.character.setAnimation("facepalm")
+                Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+                    self?.goToWorkstation(ToolRouter.centerIdle(), state: .idle)
+                }
 
             default:
                 let ws = ToolRouter.route(tool: evt.tool, event: evt.event, state: evt.state)
@@ -1378,7 +1566,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self = self else { return }
             if self.currentState != .idle &&
                Date().timeIntervalSince(self.lastEventTime) > 8 {
-                self.goToWorkstation(ToolRouter.centerIdle, state: .idle)
+                self.goToWorkstation(ToolRouter.centerIdle(), state: .idle)
             }
         }
     }
@@ -1387,12 +1575,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let old = currentState
         currentState = state
         gameView.currentState = state
-        gameView.character.walkTo(position: ws.position, pose: ws.pose)
+        gameView.character.walkTo(position: ws.position, pose: ws.animation)
         gameView.switchBackground(to: ws.background)
 
         // Drones are only recalled on SubagentStop, not on state change
 
-        print("  \(old.rawValue) → \(state.rawValue) [\(ws.pose)]")
+        print("  \(old.rawValue) → \(state.rawValue) [\(ws.animation)]")
         playSound(state.rawValue)
     }
 
@@ -1465,7 +1653,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func triggerDemo() {
         if demoRunning {
             stopDemo()
-            goToWorkstation(ToolRouter.centerIdle, state: .idle)
+            goToWorkstation(ToolRouter.centerIdle(), state: .idle)
         } else {
             startDemo()
         }
