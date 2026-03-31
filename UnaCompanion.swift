@@ -952,6 +952,8 @@ class SetupManager {
         STATE="idle"; BUBBLE="" ;;
       StopFailure)
         STATE="attention"; BUBBLE="Stop failed!" ;;
+      SessionStart)
+        STATE="working"; BUBBLE="Waking up..." ;;
       SessionEnd)
         STATE="idle"; BUBBLE="" ;;
       *)
@@ -989,7 +991,9 @@ class SetupManager {
     static let hookEvents = [
         "PreToolUse", "PostToolUse", "PostToolUseFailure",
         "UserPromptSubmit", "SubagentStart", "SubagentStop",
-        "PermissionRequest", "Notification", "Stop"
+        "PermissionRequest", "Notification", "Stop",
+        "SessionStart", "SessionEnd", "PreCompact", "PostCompact",
+        "StopFailure", "TaskCompleted"
     ]
 
     func registerHookInSettings() -> Bool {

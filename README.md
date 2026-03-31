@@ -70,7 +70,7 @@ She's not just an animation. She **speaks**, she **knows what tools you're using
 - **One-click auto-setup** — creates `~/.claude/hooks/una-hook.sh` + registers it in `settings.json`
 - Backs up your settings before modifying
 - Idempotent — safe to run multiple times
-- Monitors 10 hook events: PreToolUse, PostToolUse, PermissionRequest, UserPromptSubmit, TaskCompleted, TaskCreate, SubagentStart, SubagentStop, PostToolUseFailure, Notification
+- Monitors 15 hook events: PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, SubagentStart, SubagentStop, PermissionRequest, Notification, Stop, SessionStart, SessionEnd, PreCompact, PostCompact, StopFailure, TaskCompleted
 
 ### Controls (Menu Bar)
 - **Size:** Small (200) / Medium (300) / Large (380) / XL (480) / XXL (580)
