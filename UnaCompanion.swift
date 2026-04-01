@@ -922,6 +922,16 @@ class GameView: NSView {
     var backgrounds: [UnaState: NSImage] = [:]
     var currentBg: NSImage?
 
+    // Crossfade transition
+    var prevBg: NSImage?
+    var bgFadeProgress: CGFloat = 1.0  // 0=showing prevBg, 1=showing currentBg
+    let bgFadeDuration: CGFloat = 0.25  // seconds
+
+    // Attention flash
+    var preAttentionBg: NSImage?  // room before attention
+    var attentionFlashTimer: Timer?
+    var attentionFlashOn: Bool = true  // true=attention room, false=pre-attention room
+
     var atlas: SpriteAtlas?
     var character = CharacterController()
     var droneCtrl = DroneController()
@@ -945,8 +955,29 @@ class GameView: NSView {
     }
 
     func switchBackground(to state: UnaState) {
-        if let newBg = backgrounds[state] {
-            currentBg = newBg
+        guard let newBg = backgrounds[state] else { return }
+
+        // Stop any existing attention flash
+        attentionFlashTimer?.invalidate()
+        attentionFlashTimer = nil
+
+        // Start crossfade from current to new
+        if currentBg !== newBg {
+            prevBg = currentBg
+            bgFadeProgress = 0.0
+        }
+        currentBg = newBg
+
+        // Attention state: flash between attention room and previous room
+        if state == .attention, let prev = prevBg, prev !== newBg {
+            preAttentionBg = prev
+            attentionFlashOn = true
+            attentionFlashTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                self.attentionFlashOn.toggle()
+            }
+        } else {
+            preAttentionBg = nil
         }
     }
 
@@ -962,9 +993,30 @@ class GameView: NSView {
         ctx.saveGState()
         ctx.scaleBy(x: scale, y: scale)
 
-        // 1. Background — standard NSImage.draw, no flip needed
-        if let bg = currentBg {
-            bg.draw(in: NSRect(x: 0, y: 0, width: S, height: S))
+        // 1. Background — crossfade + attention flash
+        let bgRect = NSRect(x: 0, y: 0, width: S, height: S)
+
+        // Advance crossfade (30fps → ~0.033s per frame)
+        if bgFadeProgress < 1.0 {
+            bgFadeProgress = min(1.0, bgFadeProgress + 1.0 / (bgFadeDuration * 30.0))
+        }
+
+        // Determine which bg to show (attention flash toggles between two)
+        let activeBg: NSImage? = {
+            if currentState == .attention, let pre = preAttentionBg, !attentionFlashOn {
+                return pre
+            }
+            return currentBg
+        }()
+
+        if bgFadeProgress < 1.0, let old = prevBg {
+            // Draw previous bg fading out
+            old.draw(in: bgRect, from: .zero, operation: .sourceOver, fraction: 1.0 - bgFadeProgress)
+            // Draw new bg fading in
+            activeBg?.draw(in: bgRect, from: .zero, operation: .sourceOver, fraction: bgFadeProgress)
+        } else {
+            activeBg?.draw(in: bgRect)
+            prevBg = nil  // release reference
         }
 
         // 2. Una
@@ -1650,7 +1702,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         startStateServer()
         speech.loadVoiceLines(dir: "\(base)/voice-lines")
 
-        print("una-cc v0.1 — Tool-Aware + Idle Patrol")
+        print("una-cc v0.2.1")
 
         // First-run setup check
         let setup = SetupManager()
@@ -1961,7 +2013,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let menu = NSMenu()
 
-        let t = NSMenuItem(title: "una-cc v0.1", action: nil, keyEquivalent: "")
+        let t = NSMenuItem(title: "una-cc v0.2.1", action: nil, keyEquivalent: "")
         t.isEnabled = false; menu.addItem(t)
         menu.addItem(NSMenuItem.separator())
 
