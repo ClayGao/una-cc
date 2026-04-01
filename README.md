@@ -108,6 +108,25 @@ Claude Code hooks → una-hook.sh → HTTP POST localhost:45900/state
 
 ---
 
+## How the Assets Were Made
+
+### Character & Rooms
+All pixel art was generated with AI image generation (via MCP tools), then manually adapted:
+- **Sprite sheets** — AI-generated character poses, sliced into individual frames
+- **Edge cleanup** — a custom Python script (`scripts/clean-sprites.py`) removes dark fringe artifacts from background removal (967k pixels cleaned across 150 sprites)
+- **Scale calibration** — each animation has a manual `scale` value in the manifest to compensate for inconsistent canvas usage across AI-generated sheets
+- **Isometric rooms** — 6 room states generated separately, matched to a consistent perspective
+
+### Voice
+Three voice packs, each generated differently:
+- **EN (Ana)** — Microsoft Edge-TTS (`en-US-AnaNeural`), post-processed with a 3-layer metal echo effect via ffmpeg for a mechanical girl sound
+- **ZH (HsiaoChen)** — Microsoft Edge-TTS (`zh-TW-HsiaoChenNeural`), same metal echo post-processing
+- **Original (Cortana)** — Coqui XTTS v2 voice cloning from a ~10s reference sample, generating all 101 lines with the cloned voice
+
+Voice line text was hand-written per category (28 categories, 101 lines per pack) to match the mechanical AI companion persona. Generation scripts are in `scripts/generate-voice-lines*.py`.
+
+---
+
 ## Tech
 
 - **Language:** Swift (single file, ~2100 lines)
