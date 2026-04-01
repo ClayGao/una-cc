@@ -470,6 +470,9 @@ class EquipmentController {
 
 class SpeechController {
     var enabled: Bool = true
+    static let languages = ["en", "zh", "og"]             // EN, 中文, Original
+    var language: String = "en"
+    private var baseDir: String = ""
     private var voiceLines: [String: [String]] = [:]
     private var isPlaying = false
     private var lastSpoke = Date.distantPast
@@ -510,16 +513,43 @@ class SpeechController {
     ]
 
     func loadVoiceLines(dir: String) {
+        baseDir = dir
+        reloadVoiceLines()
+    }
+
+    func reloadVoiceLines() {
+        voiceLines.removeAll()
+        let langDir = "\(baseDir)/\(language)"
         let fm = FileManager.default
-        guard let categories = try? fm.contentsOfDirectory(atPath: dir) else { return }
+        // Try language subdirectory first (new layout: voice-lines/en/, voice-lines/zh/)
+        // Fall back to flat layout (legacy: voice-lines/category/)
+        let scanDir = fm.fileExists(atPath: langDir) ? langDir : baseDir
+        guard let categories = try? fm.contentsOfDirectory(atPath: scanDir) else { return }
+        print("  Loading voice lines [\(language)] from \(scanDir)")
         for cat in categories {
-            let catPath = "\(dir)/\(cat)"
+            let catPath = "\(scanDir)/\(cat)"
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: catPath, isDirectory: &isDir), isDir.boolValue else { continue }
             if let files = try? fm.contentsOfDirectory(atPath: catPath) {
                 let wavs = files.filter { $0.hasSuffix(".wav") }.map { "\(catPath)/\($0)" }.sorted()
                 if !wavs.isEmpty { voiceLines[cat] = wavs; print("  voice[\(cat)]: \(wavs.count)") }
             }
+        }
+    }
+
+    func toggleLanguage() {
+        let langs = Self.languages
+        let idx = langs.firstIndex(of: language) ?? 0
+        language = langs[(idx + 1) % langs.count]
+        reloadVoiceLines()
+        play("greeting", priority: 1)
+    }
+
+    var languageLabel: String {
+        switch language {
+        case "zh": return "中文"
+        case "og": return "Original"
+        default:   return "EN"
         }
     }
 
@@ -612,6 +642,282 @@ class SpeechController {
 
 // MARK: - Game View
 
+// MARK: - Sci-Fi Context Menu
+
+struct SciFiMenuItem {
+    let title: String
+    let action: () -> Void
+    var isSelected: Bool = false
+    var isSeparator: Bool = false
+    var isHeader: Bool = false
+    var children: [SciFiMenuItem]? = nil
+
+    static func separator() -> SciFiMenuItem {
+        SciFiMenuItem(title: "", action: {}, isSeparator: true)
+    }
+    static func header(_ title: String) -> SciFiMenuItem {
+        SciFiMenuItem(title: title, action: {}, isHeader: true)
+    }
+}
+
+class SciFiMenuView: NSView {
+    var items: [SciFiMenuItem] = []
+    var hoveredIndex: Int = -1
+    var expandedIndex: Int = -1
+    var subMenuView: SciFiMenuView?
+    var onDismiss: (() -> Void)?
+
+    private let itemH: CGFloat = 28
+    private let sepH: CGFloat = 12
+    private let headerH: CGFloat = 24
+    private let padX: CGFloat = 16
+    private let font = NSFont(name: "SF Mono", size: 12) ?? NSFont(name: "Menlo", size: 12) ?? NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+    private let headerFont = NSFont(name: "SF Mono", size: 10) ?? NSFont(name: "Menlo", size: 10) ?? NSFont.monospacedSystemFont(ofSize: 10, weight: .bold)
+
+    // Colors — space station palette
+    private let bgColor = NSColor(calibratedRed: 0.02, green: 0.05, blue: 0.12, alpha: 0.95)
+    private let borderColor = NSColor(calibratedRed: 0.15, green: 0.55, blue: 0.85, alpha: 0.7)
+    private let textColor = NSColor(calibratedRed: 0.75, green: 0.9, blue: 1.0, alpha: 1.0)
+    private let dimColor = NSColor(calibratedRed: 0.4, green: 0.55, blue: 0.65, alpha: 1.0)
+    private let hoverBg = NSColor(calibratedRed: 0.08, green: 0.18, blue: 0.32, alpha: 1.0)
+    private let accentColor = NSColor(calibratedRed: 0.2, green: 0.75, blue: 1.0, alpha: 1.0)
+    private let sepColor = NSColor(calibratedRed: 0.15, green: 0.3, blue: 0.5, alpha: 0.4)
+
+    func calcSize() -> NSSize {
+        var h: CGFloat = 8 // top padding
+        var maxW: CGFloat = 160
+        for item in items {
+            if item.isSeparator { h += sepH }
+            else if item.isHeader { h += headerH }
+            else {
+                h += itemH
+                let w = (item.title as NSString).size(withAttributes: [.font: font]).width + padX * 2 + 50
+                maxW = max(maxW, w)
+            }
+        }
+        h += 8 // bottom padding
+        return NSSize(width: maxW, height: h)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let rect = bounds
+
+        // Background
+        bgColor.setFill()
+        let bgPath = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
+        bgPath.fill()
+
+        // Border glow
+        borderColor.setStroke()
+        let inset = rect.insetBy(dx: 0.5, dy: 0.5)
+        let borderPath = NSBezierPath(roundedRect: inset, xRadius: 6, yRadius: 6)
+        borderPath.lineWidth = 1.0
+        borderPath.stroke()
+
+        // Inner glow line at top
+        let glowRect = NSRect(x: 8, y: rect.height - 2, width: rect.width - 16, height: 1)
+        accentColor.withAlphaComponent(0.3).setFill()
+        NSBezierPath(rect: glowRect).fill()
+
+        // Items
+        var y = rect.height - 8
+        for (i, item) in items.enumerated() {
+            if item.isSeparator {
+                y -= sepH
+                let lineY = y + sepH / 2
+                sepColor.setFill()
+                NSBezierPath(rect: NSRect(x: padX, y: lineY, width: rect.width - padX * 2, height: 1)).fill()
+                continue
+            }
+            if item.isHeader {
+                y -= headerH
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: headerFont,
+                    .foregroundColor: dimColor
+                ]
+                (item.title as NSString).draw(at: NSPoint(x: padX, y: y + 5), withAttributes: attrs)
+                continue
+            }
+
+            y -= itemH
+
+            // Hover highlight
+            if i == hoveredIndex {
+                hoverBg.setFill()
+                let hRect = NSRect(x: 4, y: y, width: rect.width - 8, height: itemH)
+                NSBezierPath(roundedRect: hRect, xRadius: 4, yRadius: 4).fill()
+            }
+
+            // Selection indicator
+            let textX: CGFloat = padX
+            if item.isSelected {
+                let checkAttrs: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .foregroundColor: accentColor
+                ]
+                (">" as NSString).draw(at: NSPoint(x: 6, y: y + 6), withAttributes: checkAttrs)
+            }
+
+            // Title
+            let color = (i == hoveredIndex) ? accentColor : textColor
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: color
+            ]
+            (item.title as NSString).draw(at: NSPoint(x: textX, y: y + 6), withAttributes: attrs)
+
+            // Submenu arrow
+            if item.children != nil {
+                let arrowAttrs: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .foregroundColor: dimColor
+                ]
+                (">" as NSString).draw(at: NSPoint(x: rect.width - 20, y: y + 6), withAttributes: arrowAttrs)
+            }
+        }
+    }
+
+    private func itemIndex(at point: NSPoint) -> Int {
+        var y = bounds.height - 8
+        for (i, item) in items.enumerated() {
+            if item.isSeparator { y -= sepH; continue }
+            if item.isHeader { y -= headerH; continue }
+            y -= itemH
+            if point.y >= y && point.y < y + itemH { return i }
+        }
+        return -1
+    }
+
+    private func itemRect(at index: Int) -> NSRect {
+        var y = bounds.height - 8
+        for (i, item) in items.enumerated() {
+            if item.isSeparator { y -= sepH; continue }
+            if item.isHeader { y -= headerH; continue }
+            y -= itemH
+            if i == index { return NSRect(x: 0, y: y, width: bounds.width, height: itemH) }
+        }
+        return .zero
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let pt = convert(event.locationInWindow, from: nil)
+        let idx = itemIndex(at: pt)
+        if idx != hoveredIndex {
+            hoveredIndex = idx
+            needsDisplay = true
+
+            // Show/hide submenu
+            if idx >= 0 && idx < items.count, let children = items[idx].children {
+                showSubMenu(children, forIndex: idx)
+            } else {
+                hideSubMenu()
+            }
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let pt = convert(event.locationInWindow, from: nil)
+        let idx = itemIndex(at: pt)
+        if idx >= 0 && idx < items.count {
+            let item = items[idx]
+            if !item.isSeparator && !item.isHeader && item.children == nil {
+                item.action()
+                onDismiss?()
+            }
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach { removeTrackingArea($0) }
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseMoved, .activeAlways, .mouseEnteredAndExited], owner: self))
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        if subMenuView == nil {
+            hoveredIndex = -1
+            needsDisplay = true
+        }
+    }
+
+    private func showSubMenu(_ children: [SciFiMenuItem], forIndex idx: Int) {
+        hideSubMenu()
+        let sub = SciFiMenuView()
+        sub.items = children
+        sub.onDismiss = onDismiss
+        let size = sub.calcSize()
+        let rect = itemRect(at: idx)
+        let screenPt = window?.convertPoint(toScreen: convert(NSPoint(x: bounds.width - 2, y: rect.midY - size.height / 2), to: nil)) ?? .zero
+
+        sub.frame = NSRect(origin: .zero, size: size)
+        let subWin = NSPanel(contentRect: NSRect(origin: screenPt, size: size),
+                             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        subWin.level = .popUpMenu
+        subWin.isOpaque = false
+        subWin.backgroundColor = .clear
+        subWin.contentView = sub
+        subWin.orderFront(nil)
+        subMenuView = sub
+        expandedIndex = idx
+    }
+
+    func hideSubMenu() {
+        subMenuView?.window?.close()
+        subMenuView = nil
+        expandedIndex = -1
+    }
+}
+
+class SciFiMenuController {
+    private var panel: NSPanel?
+    private var menuView: SciFiMenuView?
+    private var monitor: Any?
+
+    func show(items: [SciFiMenuItem], at screenPoint: NSPoint) {
+        dismiss()
+
+        let view = SciFiMenuView()
+        view.items = items
+        let size = view.calcSize()
+
+        // Position: show above the click point, aligned to right of cursor
+        let origin = NSPoint(x: screenPoint.x, y: screenPoint.y)
+        view.frame = NSRect(origin: .zero, size: size)
+
+        let p = NSPanel(contentRect: NSRect(origin: origin, size: size),
+                        styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        p.level = .popUpMenu
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.contentView = view
+        p.orderFront(nil)
+
+        view.onDismiss = { [weak self] in self?.dismiss() }
+        panel = p
+        menuView = view
+
+        // Click-outside to dismiss
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self = self, let panel = self.panel else { return event }
+            let loc = event.locationInWindow
+            if event.window != panel && event.window != self.menuView?.subMenuView?.window {
+                self.dismiss()
+            }
+            return event
+        }
+    }
+
+    func dismiss() {
+        menuView?.hideSubMenu()
+        panel?.close()
+        panel = nil
+        menuView = nil
+        if let m = monitor { NSEvent.removeMonitor(m); monitor = nil }
+    }
+}
+
+// MARK: - Game View
+
 class GameView: NSView {
     var backgrounds: [UnaState: NSImage] = [:]
     var currentBg: NSImage?
@@ -629,6 +935,14 @@ class GameView: NSView {
     var effectPhase: Double = 0.0
     var currentState: UnaState = .idle
     let spriteHeight: CGFloat = 150.0
+
+    weak var appDelegate: AppDelegate?
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard let delegate = appDelegate else { return }
+        let screenPt = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
+        delegate.showSciFiMenu(at: screenPt)
+    }
 
     func switchBackground(to state: UnaState) {
         if let newBg = backgrounds[state] {
@@ -1062,36 +1376,72 @@ class SetupManager {
 
     static let hookScript = """
     #!/bin/bash
-    # una-hook.sh — v0.1 Tool-aware routing for una-cc
+    # una-hook.sh — v0.2 Context-aware routing for una-cc
     curl -s --connect-timeout 0.2 "http://localhost:45900/health" >/dev/null 2>&1 || exit 0
 
     INPUT=$(cat 2>/dev/null || echo '{}')
     EVENT=$(echo "$INPUT" | grep -o '"hook_event_name":"[^"]*"' | head -1 | cut -d'"' -f4)
     TOOL=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' | head -1 | cut -d'"' -f4)
-    BUBBLE=""
 
+    # Extract context from tool_input for richer bubbles
+    extract() { echo "$INPUT" | grep -o "\"$1\":\"[^\"]*\"" | head -1 | cut -d'"' -f4; }
+    FILE_PATH=$(extract file_path)
+    FNAME=$(basename "$FILE_PATH" 2>/dev/null)
+    CMD=$(extract command)
+    PATTERN=$(extract pattern)
+    DESCRIPTION=$(extract description)
+    SKILL=$(extract skill)
+    QUERY=$(extract query)
+    # Truncate long strings to 30 chars
+    trunc() { local s="$1"; [ ${#s} -gt 30 ] && echo "${s:0:27}..." || echo "$s"; }
+
+    BUBBLE=""
     case "$EVENT" in
       UserPromptSubmit)
         STATE="thinking"; BUBBLE="Thinking..." ;;
       PreToolUse)
         case "$TOOL" in
-          Read)                  STATE="scanning"; BUBBLE="Reading file..." ;;
-          Glob)                  STATE="scanning"; BUBBLE="Finding files..." ;;
-          Grep)                  STATE="scanning"; BUBBLE="Searching code..." ;;
-          Edit)                  STATE="working";  BUBBLE="Editing code..." ;;
-          Write)                 STATE="working";  BUBBLE="Writing file..." ;;
-          Bash)                  STATE="working";  BUBBLE="Running command..." ;;
-          NotebookEdit)          STATE="working";  BUBBLE="Editing notebook..." ;;
-          Agent)                 STATE="dispatch"; BUBBLE="Dispatching agent..." ;;
-          WebSearch)             STATE="dispatch"; BUBBLE="Searching web..." ;;
-          WebFetch)              STATE="dispatch"; BUBBLE="Fetching page..." ;;
-          TaskCreate)            STATE="thinking"; BUBBLE="Creating task..." ;;
-          TaskUpdate)            STATE="thinking"; BUBBLE="Updating task..." ;;
-          Skill)                 STATE="working";  BUBBLE="Running skill..." ;;
+          Read)
+            STATE="scanning"
+            [ -n "$FNAME" ] && BUBBLE="Reading $FNAME" || BUBBLE="Reading file..." ;;
+          Glob)
+            P=$(extract pattern)
+            STATE="scanning"
+            [ -n "$P" ] && BUBBLE="Finding $(trunc "$P")" || BUBBLE="Finding files..." ;;
+          Grep)
+            STATE="scanning"
+            [ -n "$PATTERN" ] && BUBBLE="Searching: $(trunc "$PATTERN")" || BUBBLE="Searching code..." ;;
+          Edit)
+            STATE="working"
+            [ -n "$FNAME" ] && BUBBLE="Editing $FNAME" || BUBBLE="Editing code..." ;;
+          Write)
+            STATE="working"
+            [ -n "$FNAME" ] && BUBBLE="Writing $FNAME" || BUBBLE="Writing file..." ;;
+          Bash)
+            STATE="working"
+            [ -n "$CMD" ] && BUBBLE="$ $(trunc "$CMD")" || BUBBLE="Running command..." ;;
+          NotebookEdit)
+            STATE="working"
+            [ -n "$FNAME" ] && BUBBLE="Notebook: $FNAME" || BUBBLE="Editing notebook..." ;;
+          Agent)
+            STATE="dispatch"
+            [ -n "$DESCRIPTION" ] && BUBBLE="Agent: $(trunc "$DESCRIPTION")" || BUBBLE="Dispatching agent..." ;;
+          WebSearch)
+            STATE="dispatch"
+            [ -n "$QUERY" ] && BUBBLE="Search: $(trunc "$QUERY")" || BUBBLE="Searching web..." ;;
+          WebFetch)
+            STATE="dispatch"; BUBBLE="Fetching page..." ;;
+          TaskCreate)
+            STATE="thinking"; BUBBLE="Creating task..." ;;
+          TaskUpdate)
+            STATE="thinking"; BUBBLE="Updating task..." ;;
+          Skill)
+            STATE="working"
+            [ -n "$SKILL" ] && BUBBLE="/$SKILL" || BUBBLE="Running skill..." ;;
           mcp__mcp-atlassian*)   STATE="dispatch"; BUBBLE="Checking Jira..." ;;
           mcp__claude_ai_Slack*) STATE="dispatch"; BUBBLE="Reading Slack..." ;;
           mcp__mcp-image*)       STATE="thinking"; BUBBLE="Generating image..." ;;
-          mcp__playwright*)      STATE="dispatch"; BUBBLE="Browser automation..." ;;
+          mcp__playwright*)      STATE="dispatch"; BUBBLE="Browser action..." ;;
           mcp__claude-in-chrome*) STATE="dispatch"; BUBBLE="Chrome action..." ;;
           *)                     STATE="working";  BUBBLE="Working..." ;;
         esac ;;
@@ -1122,6 +1472,9 @@ class SetupManager {
       *)
         exit 0 ;;
     esac
+
+    # Escape quotes in bubble text for JSON
+    BUBBLE=$(echo "$BUBBLE" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
 
     curl -s -X POST "http://localhost:45900/state" \\
       -H "Content-Type: application/json" \\
@@ -1249,6 +1602,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var stateServer: StateServer!
     var statusItem: NSStatusItem?
     var sounds: [String: AVAudioPlayer] = [:]
+    let sciFiMenu = SciFiMenuController()
 
     var currentState: UnaState = .idle
     var currentSize: CGFloat = 300
@@ -1469,6 +1823,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         gameView.backgrounds = backgrounds
         gameView.currentBg = backgrounds[.idle]
         gameView.atlas = atlas
+        gameView.appDelegate = self
 
         window.contentView = gameView
         window.makeKeyAndOrderFront(nil)
@@ -1562,10 +1917,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         stateServer.start(port: 45900)
 
-        idleTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        // Safety-net idle return: only triggers after 3 min of no events (in case Stop was missed)
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             if self.currentState != .idle &&
-               Date().timeIntervalSince(self.lastEventTime) > 8 {
+               Date().timeIntervalSince(self.lastEventTime) > 180 {
                 self.goToWorkstation(ToolRouter.centerIdle(), state: .idle)
             }
         }
@@ -1636,6 +1992,107 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         soundEnabled = !soundEnabled
         speech.enabled = soundEnabled
         sender.state = soundEnabled ? .on : .off
+    }
+
+    func buildContextMenu() -> NSMenu {
+        let menu = NSMenu()
+
+        // Voice submenu
+        let voiceMenu = NSMenu()
+        let voiceOptions: [(String, String)] = [("EN (Ana)", "en"), ("中文 (HsiaoChen)", "zh"), ("Original (Cortana)", "og")]
+        for (label, lang) in voiceOptions {
+            let item = NSMenuItem(title: label, action: #selector(selectVoice(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = lang
+            item.state = (speech.language == lang) ? .on : .off
+            voiceMenu.addItem(item)
+        }
+        let voiceItem = NSMenuItem(title: "Voice", action: nil, keyEquivalent: "")
+        voiceItem.submenu = voiceMenu
+        menu.addItem(voiceItem)
+
+        // Sound toggle
+        let soundItem = NSMenuItem(title: "Sound", action: #selector(toggleSound(_:)), keyEquivalent: "")
+        soundItem.target = self; soundItem.state = soundEnabled ? .on : .off
+        menu.addItem(soundItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        // Size submenu
+        let sizeMenu = NSMenu()
+        for (l, s) in [("Small (200)", 200), ("Medium (300)", 300), ("Large (380)", 380), ("XL (480)", 480), ("XXL (580)", 580)] as [(String, Int)] {
+            let i = NSMenuItem(title: l, action: #selector(changeSize(_:)), keyEquivalent: "")
+            i.tag = s; i.target = self
+            if CGFloat(s) == currentSize { i.state = .on }
+            sizeMenu.addItem(i)
+        }
+        let sizeItem = NSMenuItem(title: "Size", action: nil, keyEquivalent: "")
+        sizeItem.submenu = sizeMenu
+        menu.addItem(sizeItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let demoItem = NSMenuItem(title: "Demo Mode", action: #selector(triggerDemo), keyEquivalent: "")
+        demoItem.target = self
+        menu.addItem(demoItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        return menu
+    }
+
+    func showSciFiMenu(at point: NSPoint) {
+        let voiceChildren: [SciFiMenuItem] = [
+            SciFiMenuItem(title: "EN  (Ana)", action: { [weak self] in self?.setVoice("en") }, isSelected: speech.language == "en"),
+            SciFiMenuItem(title: "ZH  (HsiaoChen)", action: { [weak self] in self?.setVoice("zh") }, isSelected: speech.language == "zh"),
+            SciFiMenuItem(title: "OG  (Cortana)", action: { [weak self] in self?.setVoice("og") }, isSelected: speech.language == "og"),
+        ]
+        let sizeChildren: [SciFiMenuItem] = [
+            ("200  Small", 200), ("300  Medium", 300), ("380  Large", 380), ("480  XL", 480), ("580  XXL", 580)
+        ].map { (label, s) in
+            SciFiMenuItem(title: label, action: { [weak self] in self?.setSize(CGFloat(s)) }, isSelected: CGFloat(s) == currentSize)
+        }
+
+        let items: [SciFiMenuItem] = [
+            .header("// UNA COMPANION"),
+            .separator(),
+            SciFiMenuItem(title: "VOICE", action: {}, children: voiceChildren),
+            SciFiMenuItem(title: soundEnabled ? "SOUND  [ON]" : "SOUND  [OFF]", action: { [weak self] in
+                guard let self = self else { return }
+                self.soundEnabled = !self.soundEnabled
+                self.speech.enabled = self.soundEnabled
+            }),
+            .separator(),
+            SciFiMenuItem(title: "SIZE", action: {}, children: sizeChildren),
+            .separator(),
+            SciFiMenuItem(title: "DEMO MODE", action: { [weak self] in self?.triggerDemo() }),
+            .separator(),
+            SciFiMenuItem(title: "QUIT", action: { NSApp.terminate(nil) }),
+        ]
+        sciFiMenu.show(items: items, at: point)
+    }
+
+    func setVoice(_ lang: String) {
+        speech.language = lang
+        speech.reloadVoiceLines()
+        speech.play("greeting", priority: 1)
+    }
+
+    func setSize(_ s: CGFloat) {
+        currentSize = s
+        let f = window.frame
+        let nf = NSRect(x: f.origin.x + (f.width - s), y: f.origin.y, width: s, height: s)
+        window.setFrame(nf, display: true, animate: true)
+        gameView.frame = NSRect(x: 0, y: 0, width: s, height: s)
+    }
+
+    @objc func selectVoice(_ sender: NSMenuItem) {
+        guard let lang = sender.representedObject as? String else { return }
+        setVoice(lang)
     }
 
     @objc func changeSize(_ sender: NSMenuItem) {
