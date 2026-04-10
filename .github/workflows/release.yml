@@ -10,6 +10,7 @@ on:
       - 'voice-lines/**'
       - 'sounds/**'
       - 'scripts/**'
+      - '.github/workflows/**'
 
 permissions:
   contents: write
