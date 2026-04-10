@@ -6,7 +6,7 @@ on:
     paths:
       - 'UnaCompanion.swift'
       - 'Info.plist'
-      - 'assets-v10/**'
+      - 'assets-v11/**'
       - 'voice-lines/**'
       - 'sounds/**'
       - 'scripts/**'
